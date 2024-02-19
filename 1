@@ -1,0 +1,279 @@
+FTP
+# Server
+import socket
+import os
+mysocket=socket.socket()
+print(mysocket)
+mysocket.bind(('localhost',9999))
+mysocket.listen(10)
+#os.mkdir("Server")
+#os.mkdir("Client")
+while(True):
+    flag=0
+    conn,addr=mysocket.accept()
+    conn.send("Connected to Server.".encode())
+    while(True):
+        #print(conn,addr)
+        opt=conn.recv(1024).decode()
+        if(opt=="List"):
+            msg=os.listdir("Server")
+            info=""
+            for i in msg:
+                info+=i+" "
+            conn.send(info.encode())
+        elif(opt.startswith("Get")):
+            l=opt.split()
+            print("The received file name is:",l[1])
+            avail=os.listdir("Server")
+            if(l[1] in avail):
+                conn.send(b"Yes")
+                file="Server/"+l[1]
+                with open(file,"r") as fopen:
+                    msg=fopen.read()
+                print(msg)
+                conn.send(msg.encode())
+            else:
+                conn.send("No")
+        elif(opt.startswith("Put")):
+            l=opt.split()
+            print("The file going to be uploaded is:",l[1])
+            msg=conn.recv(32768).decode()
+            file="Server/"+l[1]
+            fopen=open(file,"w")
+            fopen.write(msg)
+            print("The content is:")
+            print(msg)
+            conn.send(b'Success')
+        else:
+            flag=1
+            break
+    if(flag==1):
+        conn.close()
+        break
+# Client
+import os
+import socket
+mysocket=socket.socket()
+mysocket.connect(('localhost',9999))
+print(mysocket)
+print(mysocket.recv(1024).decode())
+while(True):
+    print("\nThe following options are available:")
+    print("Press 1. List all the files in the server.")
+    print("Press 2. Get a file from the server and load into the client.")
+    print("Press 3. To put a file from the client and load inot the server.")
+    print("Press any other key to exit.")
+    opt=int(input("Enter your option:"))
+    print("\n")
+    if(opt==1):
+        mysocket.send(b"List")
+        msg=mysocket.recv(32768).decode()# if more files are there in the folder
+        print("The following files are available in the server.")
+        l=msg.split()
+        for i in l:
+            print(i)
+    elif(opt==2):
+        file=input("Enter the file name that you want to get from the server with extension:")
+        msg="Get "+file
+        mysocket.send(msg.encode())
+        rep_server=mysocket.recv(1024).decode()
+        if(rep_server=="Yes"):
+            print("The file is available in the server folder.")
+            msg=mysocket.recv(32768).decode()
+            filename=f"Client/{file}"
+            fopen=open(filename,"w")
+            fopen.write(msg)
+            print("The file got successfully loaded into your client folder.")
+        else:
+            print("No such file exists form thegiven directory.")
+            print("The upload of the file to the client folder was unsuccessful.")
+    elif(opt==3):
+        file=input("Enter the file name that you want to upload to the server with extension:")
+        msg="Put "+file
+        if(file in os.listdir("Client")):
+            mysocket.send(msg.encode())
+            fname="Client/"+file
+            fopen=open(fname,"r")
+            msg=fopen.read()
+            mysocket.send(msg.encode())
+            msg=mysocket.recv(1024).decode()
+            if(msg=="Success"):
+                print("The file has been successfully uploaded into the server.")
+            else:
+                print("The file has not been uploaded in the server folder.")
+        else:
+            print("No such file is available in the Client Folder.")
+    else:
+        print("Thank you for learning FTP concepts in Networks.")
+        break
+mysocket.close()
+############################################################################################################################################################
+CHAT
+SERVER
+import socket
+import threading
+
+HOST = '192.168.98.178'
+PORT = 5050
+
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind((HOST, PORT))
+server.listen()
+
+clients = []
+nicknames=[]
+
+def broadcast(mes):
+    for client in clients:
+        client.send(mes.encode('utf-8'))
+
+def handle(client):
+    while True:
+        try:
+            mes = client.recv(1024).decode('utf-8')
+            broadcast(mes)
+        except:
+            index = clients.index(client)
+            clients.remove(client)
+            client.close()
+            nickname = nicknames[index]
+            broadcast(f'{nickname} has left the room.')
+            nicknames.remove(nickname)
+            client.close()
+            break
+
+def recieve():
+    while True:
+        client, addr = server.accept()
+        client.send('NICK'.encode('utf-8'))
+        nickname = client.recv(1024).decode('utf-8')
+        nicknames.append(nickname)
+        clients.append(client)
+        print(f"{addr} connected to the server.")
+        broadcast(f"{nickname} joined the chat")
+        client.send("connected to  server!".encode('utf-8'))
+
+        thread = threading.Thread(target = handle, args=(client,))
+        thread.start()
+
+print("Server is listening...")
+recieve()
+
+CLIENT
+
+import socket
+import threading
+
+HOST = '192.168.98.178'
+PORT = 5050
+
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client.connect((HOST,PORT))
+
+nickname = input("Choose a nickname: ")
+
+def recieve():
+    while True:
+        try:
+            mes = client.recv(1024).decode('utf-8')
+            if mes == 'NICK':
+                client.send(nickname.encode('utf-8'))
+            else:
+                print(mes)
+        except:
+            print("An error occurred!")
+            client.close()
+            break
+
+def write():
+    while True:
+        mes = f'{nickname}: {input("")}'
+        client.send(mes.encode('utf-8'))
+
+recieveThread = threading.Thread(target = recieve)
+recieveThread.start()
+
+writeThread = threading.Thread(target = write)
+writeThread.start()
+############################################################################################################################################################
+
+BANK SER
+
+import socket
+import threading
+
+def updateBalance(conn, request, balance):
+    if request.startswith("deposit"): 
+        amt = int(request.split()[1])
+        balance += amt
+        conn.send(str(balance).encode('utf-8'))
+        return balance
+    elif request.startswith("withdraw"):
+        amt = int(request.split()[1])
+        if balance >= amt:
+            balance -= amt
+            conn.send(str(balance).encode('utf-8'))
+            return balance
+        else:
+            conn.send("Not enough credit!".encode('utf-8'))
+            return balance
+    else:
+        conn.send("Invalid request!".encode('utf-8'))
+        return balance
+
+def handleClient(conn, addr):
+    print(f"Connected with {addr}")
+
+    balance = 1000
+
+    while True:
+        request = conn.recv(1024).decode('utf-8')
+        if request == "q":
+            break
+
+        balance = updateBalance(conn, request, balance)
+
+    conn.close()
+   
+    print(f"Connection with {addr} closed")
+   
+
+def main():
+    host = "localhost"
+    port = 9090
+
+    serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    serverSocket.bind((host, port))
+    serverSocket.listen(5)
+
+    while True:
+        conn, addr = serverSocket.accept()
+        clientThread = threading.Thread(target=handleClient, args=(conn, addr))
+        clientThread.start()
+
+main()
+
+CLIENT
+import socket
+
+def main():
+    host = "localhost"
+    port = 9090
+
+    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    clientSocket.connect((host, port))
+
+    while True:
+        userInput = input("Enter your request (e.g., deposit 100 or withdraw 50): ")
+        if userInput == "q":
+            break
+        clientSocket.send(userInput.encode('utf-8'))
+
+        data = clientSocket.recv(1024)
+        result = data.decode('utf-8')
+        print(f"Server response: {result}")
+
+    clientSocket.close()
+
+main()
+#####################################################################################################
